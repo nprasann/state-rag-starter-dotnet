@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+*.user
+*.suo
+*.swp
+.DS_Store
+
+TestResults/
+coverage/
