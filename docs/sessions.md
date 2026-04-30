@@ -99,3 +99,18 @@
   - File kept under 200 lines.
   - No source code pasted.
   - No private prompts, real data, personal strategy, or internal references included.
+
+- Date: 2026-04-30
+- Summary:
+  - Added public README stack/version badges near the project title.
+  - Matched the compact badge style used by related public repositories.
+  - Kept the update limited to documentation.
+- Decisions:
+  - Used stack and version values already present in repository files.
+  - Avoided changing runtime code, dependencies, or deployment configuration.
+- Files modified:
+  - `README.md`
+- Validation:
+  - `git diff -- README.md`
+  - `git status --short`
+  - Manual review for public-repo-safe content.

@@ -1,5 +1,14 @@
 # State RAG Starter for .NET
 
+![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
+![ASP.NET%20Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20API%2010.0-512bd4)
+![Container](https://img.shields.io/badge/container-OCI%20%2F%20ASP.NET%2010.0-0b7285)
+![Azure%20Container%20Apps](https://img.shields.io/badge/Azure%20Container%20Apps-2025--01--01-0078d4)
+![Azure%20SQL](https://img.shields.io/badge/Azure%20SQL-2023--08--01-0078d4)
+![Azure%20DevOps](https://img.shields.io/badge/Azure%20DevOps-.NET%2010.0.x-blue)
+![Status](https://img.shields.io/badge/status-early%20starter-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 An open-source .NET starter API for experimenting with state-aware retrieval augmented generation.
 
 This project is intentionally small at the baseline: it stores documents in memory, filters them by U.S. state, and returns matching source records. It is a clean foundation for adding an LLM, embeddings, vector search, persistence, and citations.
