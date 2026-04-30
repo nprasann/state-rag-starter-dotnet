@@ -1,0 +1,208 @@
+trigger:
+  branches:
+    include:
+    - main
+
+pr:
+  branches:
+    include:
+    - main
+
+schedules:
+- cron: '0 3 * * *'
+  displayName: Nightly cleanup
+  branches:
+    include:
+    - main
+  always: true
+
+parameters:
+- name: action
+  displayName: Pipeline action
+  type: string
+  default: deploy
+  values:
+  - deploy
+  - destroy
+- name: azureServiceConnection
+  displayName: Azure service connection name
+  type: string
+  default: sc-state-rag-dev
+- name: workloadName
+  displayName: Azure workload name
+  type: string
+  default: state-rag
+- name: environmentName
+  displayName: Environment name
+  type: string
+  default: dev
+- name: location
+  displayName: Azure region
+  type: string
+  default: eastus
+- name: deployDatabase
+  displayName: Deploy Azure SQL Database
+  type: boolean
+  default: true
+
+variables:
+  buildConfiguration: Release
+  imageRepository: state-rag-starter-dotnet
+  deploymentName: state-rag-$(Build.BuildId)
+  resourceGroupName: rg-${{ parameters.workloadName }}-${{ parameters.environmentName }}
+
+stages:
+- stage: Validate
+  displayName: Validate .NET project
+  condition: and(ne('${{ parameters.action }}', 'destroy'), ne(variables['Build.CronSchedule.DisplayName'], 'Nightly cleanup'))
+  jobs:
+  - job: Build
+    displayName: Restore and build
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: UseDotNet@2
+      displayName: Use .NET 10 SDK
+      inputs:
+        packageType: sdk
+        version: 10.0.x
+    - script: dotnet restore
+      displayName: dotnet restore
+    - script: dotnet build --configuration $(buildConfiguration) --no-restore
+      displayName: dotnet build
+
+- stage: Deploy
+  displayName: Provision Azure and deploy Container App
+  dependsOn: Validate
+  condition: and(succeeded(), ne(variables['Build.CronSchedule.DisplayName'], 'Nightly cleanup'), eq('${{ parameters.action }}', 'deploy'))
+  jobs:
+  - job: ProvisionAndDeploy
+    displayName: Bicep deploy, ACR build, Container Apps update
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: AzureCLI@2
+      displayName: Register required Azure providers
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          az provider register --namespace Microsoft.App
+          az provider register --namespace Microsoft.OperationalInsights
+          az provider register --namespace Microsoft.ContainerRegistry
+          az provider register --namespace Microsoft.Sql
+
+    - task: AzureCLI@2
+      name: initialInfra
+      displayName: Deploy infrastructure shell
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          DEPLOY_DATABASE="${{ parameters.deployDatabase }}"
+          DEPLOY_DATABASE="$(echo "$DEPLOY_DATABASE" | tr '[:upper:]' '[:lower:]')"
+
+          az deployment sub create \
+            --name "$(deploymentName)-infra" \
+            --location "${{ parameters.location }}" \
+            --template-file infra/bicep/main.bicep \
+            --parameters \
+              workloadName="${{ parameters.workloadName }}" \
+              environmentName="${{ parameters.environmentName }}" \
+              location="${{ parameters.location }}" \
+              deployDatabase="$DEPLOY_DATABASE" \
+              sqlAdminLogin="$(sqlAdminLogin)" \
+              sqlAdminPassword="$(sqlAdminPassword)"
+
+          ACR_NAME="$(az deployment sub show --name "$(deploymentName)-infra" --query properties.outputs.containerRegistryName.value -o tsv)"
+          ACR_LOGIN_SERVER="$(az deployment sub show --name "$(deploymentName)-infra" --query properties.outputs.containerRegistryLoginServer.value -o tsv)"
+
+          echo "##vso[task.setvariable variable=acrName]$ACR_NAME"
+          echo "##vso[task.setvariable variable=acrLoginServer]$ACR_LOGIN_SERVER"
+
+    - task: AzureCLI@2
+      displayName: Build OCI image in Azure Container Registry
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+
+          IMAGE_TAG="$(Build.BuildId)"
+          IMAGE_NAME="$(imageRepository):${IMAGE_TAG}"
+
+          az acr build \
+            --registry "$(acrName)" \
+            --image "$IMAGE_NAME" \
+            --file Containerfile \
+            .
+
+          echo "##vso[task.setvariable variable=containerImage]$(acrLoginServer)/$IMAGE_NAME"
+
+    - task: AzureCLI@2
+      displayName: Deploy Container App with built image
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          DEPLOY_DATABASE="${{ parameters.deployDatabase }}"
+          DEPLOY_DATABASE="$(echo "$DEPLOY_DATABASE" | tr '[:upper:]' '[:lower:]')"
+
+          az deployment sub create \
+            --name "$(deploymentName)-app" \
+            --location "${{ parameters.location }}" \
+            --template-file infra/bicep/main.bicep \
+            --parameters \
+              workloadName="${{ parameters.workloadName }}" \
+              environmentName="${{ parameters.environmentName }}" \
+              location="${{ parameters.location }}" \
+              containerImage="$(containerImage)" \
+              deployDatabase="$DEPLOY_DATABASE" \
+              sqlAdminLogin="$(sqlAdminLogin)" \
+              sqlAdminPassword="$(sqlAdminPassword)"
+
+          APP_URL="$(az deployment sub show --name "$(deploymentName)-app" --query properties.outputs.containerAppUrl.value -o tsv)"
+          echo "Container App URL: $APP_URL"
+          echo "##vso[task.setvariable variable=containerAppUrl]$APP_URL"
+
+    - task: AzureCLI@2
+      displayName: Smoke test deployed API
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          curl --fail --retry 10 --retry-delay 10 "$(containerAppUrl)/health"
+
+- stage: Destroy
+  displayName: Destroy Azure infrastructure
+  condition: or(eq('${{ parameters.action }}', 'destroy'), eq(variables['Build.CronSchedule.DisplayName'], 'Nightly cleanup'))
+  jobs:
+  - job: DeleteResourceGroup
+    displayName: Delete resource group
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: AzureCLI@2
+      displayName: Delete Azure resource group
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+
+          if az group show --name "$(resourceGroupName)" >/dev/null 2>&1; then
+            az group delete --name "$(resourceGroupName)" --yes --no-wait
+            echo "Delete requested for $(resourceGroupName)."
+          else
+            echo "Resource group $(resourceGroupName) does not exist."
+          fi

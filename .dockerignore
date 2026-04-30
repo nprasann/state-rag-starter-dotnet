@@ -1,0 +1,12 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/TestResults
+coverage
+.DS_Store
+README.md
+docs
+infra
+.ado

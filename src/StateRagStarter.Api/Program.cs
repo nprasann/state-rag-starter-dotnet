@@ -7,6 +7,27 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
+app.MapGet("/", () => Results.Ok(new
+{
+    name = "State RAG Starter for .NET",
+    version = "0.1.0",
+    runtime = $".NET {Environment.Version}",
+    framework = "ASP.NET Core Minimal API",
+    storage = "In-memory",
+    llm = "Not configured",
+    model = "Not configured",
+    aiApi = "Not configured",
+    endpoints = new[]
+    {
+        "GET /",
+        "GET /health",
+        "GET /documents",
+        "GET /documents?state=CA",
+        "POST /documents",
+        "POST /query"
+    }
+}));
+
 app.MapGet("/health", () => Results.Ok(new
 {
     status = "ok",

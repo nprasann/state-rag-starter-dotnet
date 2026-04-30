@@ -14,6 +14,10 @@ This project is intentionally small at the baseline: it stores documents in memo
 | Web server | Kestrel |
 | API style | HTTP JSON API |
 | Storage | In-memory `ConcurrentDictionary` |
+| Cloud target | Azure Container Apps |
+| Infrastructure as code | Bicep |
+| Container build | OCI-compatible `Containerfile` for Podman or Azure Container Registry build |
+| CI/CD | Azure DevOps YAML pipeline |
 | Retrieval | Simple keyword scoring |
 | LLM | Not wired yet |
 | Model | Not configured yet |
@@ -37,17 +41,20 @@ Recommended next integrations:
 
 The architecture notes are in [docs/architecture.md](docs/architecture.md).
 
+Azure DevOps deployment notes are in [docs/azure-devops.md](docs/azure-devops.md).
+
 ## API Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/` | API discovery JSON |
 | `GET` | `/health` | Service health check |
 | `GET` | `/documents` | List stored documents |
 | `GET` | `/documents?state=CA` | List stored documents filtered by state |
 | `POST` | `/documents` | Add or update state-specific source text |
 | `POST` | `/query` | Retrieve relevant state-specific sources |
 
-`http://localhost:5000` is intentionally not a web page. This is an API project, so use `/health`, `/documents`, or `/query`.
+`http://localhost:5000` returns API discovery JSON. This is an API project, not a browser UI.
 
 ## Prerequisites
 
@@ -147,6 +154,12 @@ Try the health endpoint:
 curl http://localhost:5000/health
 ```
 
+View API discovery:
+
+```bash
+curl http://localhost:5000
+```
+
 List seeded documents:
 
 ```bash
@@ -202,16 +215,34 @@ Common hosting patterns:
 | Linux production | Nginx or Apache reverse proxy | Kestrel |
 | Containers/cloud | Load balancer or ingress | Kestrel |
 
+## Azure DevOps and Azure Container Apps
+
+This repo includes a portable Azure DevOps deployment scaffold:
+
+- `azure-pipelines.yml` provisions infrastructure, builds the container image, deploys to Azure Container Apps, smoke tests `/health`, and can destroy the environment.
+- `infra/bicep/main.bicep` creates Azure Container Apps, Azure Container Registry, Log Analytics, and optional Azure SQL Database.
+- `Containerfile` can be built locally with Podman or remotely with Azure Container Registry build.
+
+You do not need Azure credits to store or review this code. Running the deploy stage requires an Azure subscription and an Azure DevOps service connection with permission to create resources.
+
+See [docs/azure-devops.md](docs/azure-devops.md).
+
 ## Repository Layout
 
 ```text
 .
 ├── docs/
-│   └── architecture.md
+│   ├── architecture.md
+│   └── azure-devops.md
+├── infra/
+│   └── bicep/
+│       └── main.bicep
 ├── src/
 │   └── StateRagStarter.Api/
 │       ├── Program.cs
 │       └── StateRagStarter.Api.csproj
+├── azure-pipelines.yml
+├── Containerfile
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
