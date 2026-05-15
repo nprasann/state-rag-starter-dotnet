@@ -88,7 +88,16 @@ public sealed record QueryResponse(
     string Question,
     string? State,
     string Answer,
-    IReadOnlyCollection<StateDocument> Sources);
+    IReadOnlyCollection<SourceCitation> Sources);
+
+public sealed record SourceCitation(
+    string Id,
+    string State,
+    string Title,
+    string Snippet,
+    string[] Tags,
+    DateTimeOffset UpdatedAt,
+    int Score);
 
 public sealed class StateDocumentStore
 {
@@ -160,19 +169,58 @@ public sealed class StateDocumentStore
             .Where(result => result.Score > 0)
             .OrderByDescending(result => result.Score)
             .Take(topK)
-            .Select(result => result.Document)
             .ToArray();
 
         var answer = candidates.Length == 0
             ? "I do not have enough state-specific context to answer yet. Add relevant documents, then ask again."
             : "I found state-specific context that may answer this question. Review the sources and replace this placeholder with your LLM answer generation step.";
 
-        return new QueryResponse(request.Question, request.State?.Trim().ToUpperInvariant(), answer, candidates);
+        var sources = candidates
+            .Select(result => ToCitation(result.Document, terms, result.Score))
+            .ToArray();
+
+        return new QueryResponse(request.Question, request.State?.Trim().ToUpperInvariant(), answer, sources);
     }
 
     private static int Score(StateDocument document, IReadOnlyCollection<string> terms)
     {
         var searchableText = $"{document.State} {document.Title} {document.Content} {string.Join(' ', document.Tags)}".ToLowerInvariant();
         return terms.Count(searchableText.Contains);
+    }
+
+    private static SourceCitation ToCitation(StateDocument document, IReadOnlyCollection<string> terms, int score)
+    {
+        return new SourceCitation(
+            document.Id,
+            document.State,
+            document.Title,
+            BuildSnippet(document.Content, terms),
+            document.Tags,
+            document.UpdatedAt,
+            score);
+    }
+
+    private static string BuildSnippet(string content, IReadOnlyCollection<string> terms)
+    {
+        const int maxSnippetLength = 160;
+
+        if (content.Length <= maxSnippetLength)
+        {
+            return content;
+        }
+
+        var matchIndex = terms
+            .Select(term => content.IndexOf(term, StringComparison.OrdinalIgnoreCase))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(0)
+            .Min();
+
+        var start = Math.Max(0, matchIndex - 60);
+        var length = Math.Min(maxSnippetLength, content.Length - start);
+        var snippet = content.Substring(start, length).Trim();
+        var prefix = start > 0 ? "... " : string.Empty;
+        var suffix = start + length < content.Length ? " ..." : string.Empty;
+
+        return $"{prefix}{snippet}{suffix}";
     }
 }

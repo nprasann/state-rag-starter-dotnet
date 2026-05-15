@@ -37,7 +37,7 @@ This project is intentionally small at the baseline: it stores documents in memo
 
 ## Current AI/LLM Status
 
-The current version does **not** call an LLM yet. The `/query` endpoint performs a lightweight retrieval step and returns matching source documents with a placeholder answer.
+The current version does **not** call an LLM yet. The `/query` endpoint performs a lightweight retrieval step and returns matching source citations with snippets and a placeholder answer.
 
 Recommended next integrations:
 
@@ -183,6 +183,8 @@ curl -X POST http://localhost:5000/query \
   -d '{"question":"What should I know about California leave rules?","state":"CA","topK":3}'
 ```
 
+The query response includes citation-style source records with document id, state, title, snippet, tags, updated timestamp, and retrieval score.
+
 Add a document:
 
 ```bash
@@ -264,7 +266,7 @@ See [docs/azure-devops.md](docs/azure-devops.md).
 - Add persistent storage with SQLite or PostgreSQL.
 - Add embeddings and vector search.
 - Add an LLM answer-generation service.
-- Add source citations to generated answers.
+- Add generated answer citations once an LLM provider is wired in.
 - Add tests with xUnit.
 - Add Docker support.
 - Add GitHub Actions for CI.

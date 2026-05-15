@@ -114,3 +114,22 @@
   - `git diff -- README.md`
   - `git status --short`
   - Manual review for public-repo-safe content.
+
+- Date: 2026-05-15
+- Summary:
+  - Added citation-style source records to query responses.
+  - Included snippets, tags, timestamps, and retrieval score for matched sources.
+  - Updated documentation to distinguish retrieval citations from generated-answer citations.
+- Decisions:
+  - Kept implementation dependency-free.
+  - Preserved placeholder answer behavior until an LLM provider is added.
+  - Kept in-memory storage unchanged.
+- Files modified:
+  - `src/StateRagStarter.Api/Program.cs`
+  - `README.md`
+  - `docs/architecture.md`
+  - `docs/sessions.md`
+- Validation:
+  - `dotnet build`
+  - `curl --fail http://127.0.0.1:5000/health`
+  - `curl --fail -X POST http://127.0.0.1:5000/query`

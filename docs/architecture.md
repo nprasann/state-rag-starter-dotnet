@@ -17,7 +17,7 @@ flowchart LR
     Api["ASP.NET Core Minimal API"]
     Store["In-memory StateDocumentStore"]
     Retriever["Keyword scoring retrieval"]
-    Response["JSON response with answer placeholder and sources"]
+    Response["JSON response with answer placeholder and source citations"]
 
     Client --> Api
     Api --> Store
@@ -32,7 +32,7 @@ flowchart LR
 2. The API validates that a question was provided.
 3. The document store optionally filters documents by `state`.
 4. The retrieval step scores documents using simple keyword matching.
-5. The API returns a placeholder answer plus the matching source documents.
+5. The API returns a placeholder answer plus matching source citations.
 
 ## Main Components
 
@@ -42,7 +42,8 @@ flowchart LR
 | `StateDocumentStore` | `src/StateRagStarter.Api/Program.cs` | Stores and retrieves documents |
 | `StateDocument` | `src/StateRagStarter.Api/Program.cs` | Represents source content |
 | `QueryRequest` | `src/StateRagStarter.Api/Program.cs` | Represents a user question |
-| `QueryResponse` | `src/StateRagStarter.Api/Program.cs` | Returns an answer placeholder and sources |
+| `QueryResponse` | `src/StateRagStarter.Api/Program.cs` | Returns an answer placeholder and source citations |
+| `SourceCitation` | `src/StateRagStarter.Api/Program.cs` | Represents retrieved source metadata, snippet, and score |
 
 ## Data Model
 
@@ -54,6 +55,17 @@ StateDocument
 ├── Content
 ├── Tags
 └── UpdatedAt
+```
+
+```text
+SourceCitation
+├── Id
+├── State
+├── Title
+├── Snippet
+├── Tags
+├── UpdatedAt
+└── Score
 ```
 
 The `State` field is central to the project. It allows the retrieval layer to narrow context before answer generation, which is important for legal, policy, benefits, compliance, and other jurisdiction-sensitive domains.
@@ -111,5 +123,6 @@ Add OpenAPI/Swagger once external packages are acceptable for the project baseli
 - Data is not persisted after the process stops.
 - Retrieval is keyword-based, not semantic.
 - No LLM, model, or AI API is configured yet.
+- Citations are retrieval citations, not generated-answer citations.
 - No authentication or authorization is included.
 - No tests are included yet.
